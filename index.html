@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SOC Triage Assistant — Qwort</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080c10;
+      font-family: 'Courier New', monospace;
+      color: #c8d8e8;
+      min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #080c10; }
+    ::-webkit-scrollbar-thumb { background: #1a3a5a; border-radius: 3px; }
+
+    /* ── HEADER ── */
+    #header {
+      background: linear-gradient(180deg, #0c1520, #080c10);
+      border-bottom: 1px solid #1a2a3a;
+      padding: 24px 32px;
+      position: sticky; top: 0; z-index: 20;
+    }
+    #header-inner {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    #logo { display: flex; align-items: center; gap: 14px; }
+    #logo-icon {
+      width: 42px; height: 42px; border-radius: 8px;
+      background: linear-gradient(135deg, #00ff88, #00ccff);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; box-shadow: 0 0 20px #00ff8844; flex-shrink: 0;
+    }
+    #logo-title { font-size: 18px; font-weight: 700; color: #e8f4ff; letter-spacing: 1px; }
+    #logo-sub   { font-size: 11px; color: #4a6a8a; letter-spacing: 2px; margin-top: 2px; }
+    #header-tag {
+      font-size: 11px; color: #00ff8899; letter-spacing: 1px;
+      padding: 6px 14px; border: 1px solid #00ff8833; border-radius: 20px;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    #main {
+      max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    @media (max-width: 860px) { #main { grid-template-columns: 1fr; } }
+
+    /* ── PANELS ── */
+    .panel {
+      background: #0c1520; border: 1px solid #1a2a3a; border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 16px 20px; border-bottom: 1px solid #1a2a3a;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .panel-icon { font-size: 16px; }
+    .panel-title { font-size: 13px; font-weight: 700; color: #e8f4ff; letter-spacing: 1px; }
+    .panel-sub   { font-size: 10px; color: #4a6a8a; letter-spacing: 1px; margin-top: 2px; }
+    .panel-body  { padding: 20px; }
+
+    /* ── TABS ── */
+    #input-tabs { display: flex; border-bottom: 1px solid #1a2a3a; }
+    .tab {
+      flex: 1; padding: 12px; text-align: center;
+      font-size: 11px; letter-spacing: 1px; cursor: pointer;
+      color: #4a6a8a; border: none; background: none;
+      font-family: 'Courier New', monospace;
+      border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .tab.active { color: #00ff88; border-bottom-color: #00ff88; background: #0a1a12; }
+    .tab:hover:not(.active) { color: #c8d8e8; background: #0f1f2f; }
+    .tab-content { display: none; padding: 20px; }
+    .tab-content.active { display: block; }
+
+    /* ── FORM FIELDS ── */
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block; font-size: 10px; color: #4a6a8a;
+      letter-spacing: 2px; margin-bottom: 6px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%; background: #080c10; border: 1px solid #1a2a3a;
+      border-radius: 6px; padding: 9px 12px; color: #c8d8e8;
+      font-size: 13px; outline: none; font-family: 'Courier New', monospace;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: #2a4a6a;
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    #json-input {
+      width: 100%; background: #080c10; border: 1px solid #1a2a3a;
+      border-radius: 6px; padding: 12px; color: #c8d8e8;
+      font-size: 12px; outline: none; font-family: 'Courier New', monospace;
+      resize: vertical; min-height: 220px; transition: border-color 0.15s;
+    }
+    #json-input:focus { border-color: #2a4a6a; }
+    #json-hint { font-size: 10px; color: #2a4a6a; margin-top: 8px; letter-spacing: 1px; }
+
+    /* ── SUBMIT ── */
+    #submit-btn {
+      width: 100%; background: linear-gradient(135deg, #00ff88, #00ccff);
+      border: none; border-radius: 8px; padding: 14px;
+      color: #080c10; font-weight: 700; font-size: 14px;
+      cursor: pointer; letter-spacing: 2px; font-family: 'Courier New', monospace;
+      margin-top: 4px; transition: opacity 0.15s;
+    }
+    #submit-btn:hover { opacity: 0.88; }
+    #submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #submit-wrap { padding: 0 20px 20px; }
+
+    /* ── SAMPLE ALERTS ── */
+    #samples { padding: 0 20px 20px; }
+    #samples-label { font-size: 10px; color: #4a6a8a; letter-spacing: 2px; margin-bottom: 8px; }
+    #samples-btns  { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sample-btn {
+      background: #0f1f2f; border: 1px solid #1a2a3a; border-radius: 5px;
+      padding: 6px 12px; color: #4a6a8a; font-size: 11px; cursor: pointer;
+      font-family: 'Courier New', monospace; letter-spacing: 1px; transition: all 0.15s;
+    }
+    .sample-btn:hover { border-color: #00ff8866; color: #00ff88; }
+
+    /* ── OUTPUT PANEL ── */
+    #output-panel { grid-row: span 1; }
+
+    #status-bar {
+      padding: 12px 20px; font-size: 11px; letter-spacing: 1px;
+      border-bottom: 1px solid #1a2a3a; min-height: 42px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #2a4a6a; flex-shrink: 0;
+    }
+    #status-dot.active   { background: #ffaa00; animation: pulse 1s infinite; }
+    #status-dot.done     { background: #00ff88; animation: none; }
+    #status-dot.error    { background: #ff4466; animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    #status-text { color: #4a6a8a; }
+
+    #output-body { padding: 20px; overflow-y: auto; max-height: 680px; }
+
+    /* ── VERDICT CARD ── */
+    #verdict-card {
+      border-radius: 10px; padding: 18px 20px; margin-bottom: 20px;
+      border: 1px solid; display: none;
+    }
+    .vc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .vc-verdict { font-size: 18px; font-weight: 700; }
+    .vc-badges  { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+    .badge {
+      font-size: 10px; padding: 3px 10px; border-radius: 4px;
+      letter-spacing: 1px; font-weight: 700;
+    }
+    .vc-summary { font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+    .vc-justification { font-size: 12px; color: #7a9ab8; line-height: 1.6; }
+
+    /* ── SECTION BLOCKS ── */
+    .out-section { margin-bottom: 20px; }
+    .out-section-title {
+      font-size: 10px; color: #4a6a8a; letter-spacing: 2px;
+      margin-bottom: 10px; padding-bottom: 6px;
+      border-bottom: 1px solid #1a2a3a;
+    }
+
+    /* MITRE block */
+    #mitre-block {
+      background: #0f1f2f; border: 1px solid #1a3a5a;
+      border-radius: 8px; padding: 14px 16px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .mitre-tactic   { font-size: 11px; color: #4a6a8a; letter-spacing: 1px; }
+    .mitre-tech     { font-size: 15px; font-weight: 700; color: #e8f4ff; }
+    .mitre-id       {
+      font-size: 12px; color: #00ccff; background: #00ccff11;
+      padding: 4px 12px; border-radius: 4px; letter-spacing: 1px;
+      text-decoration: none; display: inline-block;
+    }
+    .mitre-id:hover { background: #00ccff22; }
+
+    /* IOC list */
+    .ioc-list { display: flex; flex-direction: column; gap: 6px; }
+    .ioc-item {
+      background: #0f1f2f; border-radius: 6px; padding: 8px 12px;
+      font-size: 12px; color: #00ccff; letter-spacing: 0.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .ioc-item::before { content: "⚠"; font-size: 11px; color: #ffaa00; flex-shrink: 0; }
+
+    /* Containment list */
+    .action-list { display: flex; flex-direction: column; gap: 8px; counter-reset: actions; }
+    .action-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      background: #0d2b1a; border: 1px solid #00ff8822;
+      border-radius: 8px; padding: 10px 14px; font-size: 13px;
+      color: #c8d8e8; line-height: 1.5;
+    }
+    .action-num {
+      flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+      background: #00ff8822; border: 1px solid #00ff8866;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: #00ff88; font-weight: 700;
+    }
+
+    /* Escalation banner */
+    #escalation-banner {
+      border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;
+      display: none; gap: 12px; align-items: flex-start;
+    }
+    #escalation-banner.show { display: flex; }
+    .esc-icon { font-size: 20px; flex-shrink: 0; }
+    .esc-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .esc-reason { font-size: 12px; color: #c8a060; line-height: 1.5; }
+
+    /* Analyst notes */
+    #analyst-notes {
+      background: #0f1f2f; border: 1px solid #1a2a3a; border-radius: 8px;
+      padding: 14px 16px; font-size: 12px; color: #7a9ab8; line-height: 1.7;
+    }
+
+    /* ── EXPORT ── */
+    #export-bar {
+      padding: 16px 20px; border-top: 1px solid #1a2a3a;
+      display: none; gap: 10px;
+    }
+    #export-bar.show { display: flex; }
+    .export-btn {
+      flex: 1; background: #0f1f2f; border: 1px solid #1a2a3a;
+      border-radius: 6px; padding: 10px; color: #4a6a8a;
+      font-size: 12px; cursor: pointer; letter-spacing: 1px;
+      font-family: 'Courier New', monospace; transition: all 0.15s;
+    }
+    .export-btn:hover { border-color: #00ff8866; color: #00ff88; }
+    #export-md { background: #0d2b1a; border-color: #00ff8844; color: #00ff88; }
+    #export-md:hover { background: #1a4a2a; }
+
+    /* ── EMPTY STATE ── */
+    #empty-state {
+      text-align: center; padding: 60px 20px; color: #2a4a6a;
+    }
+    #empty-icon  { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+    #empty-title { font-size: 13px; letter-spacing: 2px; margin-bottom: 8px; }
+    #empty-sub   { font-size: 11px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-inner">
+    <div id="logo">
+      <div id="logo-icon">🛡</div>
+      <div>
+        <div id="logo-title">SOC Triage Assistant</div>
+        <div id="logo-sub">AI-POWERED ALERT ANALYSIS · QWORT</div>
+      </div>
+    </div>
+    <div id="header-tag">⚡ CLAUDE AI</div>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- ── INPUT PANEL ── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-icon">📥</span>
+      <div>
+        <div class="panel-title">ALERT INPUT</div>
+        <div class="panel-sub">FORM OR RAW SPLUNK JSON</div>
+      </div>
+    </div>
+
+    <div id="input-tabs">
+      <button class="tab active" onclick="switchTab('form')">📋 FORM</button>
+      <button class="tab" onclick="switchTab('json')">{ } JSON</button>
+    </div>
+
+    <!-- FORM TAB -->
+    <div id="tab-form" class="tab-content active">
+      <div class="field-row">
+        <div class="field">
+          <label>ALERT NAME *</label>
+          <input id="f-alert-name" type="text" placeholder="e.g. Encoded PowerShell Detected"/>
+        </div>
+        <div class="field">
+          <label>EVENT CODE</label>
+          <input id="f-event-code" type="text" placeholder="e.g. 4625, 1, 4769"/>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>AFFECTED HOST</label>
+          <input id="f-host" type="text" placeholder="e.g. WIN10-USER1"/>
+        </div>
+        <div class="field">
+          <label>AFFECTED USER</label>
+          <input id="f-user" type="text" placeholder="e.g. john.doe"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>SOURCE IP</label>
+        <input id="f-src-ip" type="text" placeholder="e.g. 10.0.0.2"/>
+      </div>
+      <div class="field">
+        <label>COMMAND LINE / PROCESS</label>
+        <textarea id="f-cmdline" placeholder="e.g. powershell.exe -w hidden -EncodedCommand JABhAHAAcA..."></textarea>
+      </div>
+      <div class="field">
+        <label>ADDITIONAL CONTEXT</label>
+        <textarea id="f-context" placeholder="Any other relevant details — parent process, file paths, network connections..."></textarea>
+      </div>
+    </div>
+
+    <!-- JSON TAB -->
+    <div id="tab-json" class="tab-content">
+      <textarea id="json-input" placeholder='{
+  "EventCode": "4769",
+  "Account_Name": "john.doe",
+  "Service_Name": "MSSQLSvc",
+  "Ticket_Encryption_Type": "0x17",
+  "Client_Address": "10.0.0.2",
+  "ComputerName": "DC1",
+  "_time": "2024-11-14 14:02:11"
+}'></textarea>
+      <div id="json-hint">PASTE RAW SPLUNK ALERT JSON · ALL FIELDS OPTIONAL BUT MORE = BETTER ANALYSIS</div>
+    </div>
+
+    <div id="submit-wrap">
+      <button id="submit-btn" onclick="runTriage()">⚡ ANALYSE ALERT</button>
+    </div>
+
+    <div id="samples">
+      <div id="samples-label">LOAD SAMPLE ALERT</div>
+      <div id="samples-btns">
+        <button class="sample-btn" onclick="loadSample('spray')">Password Spray</button>
+        <button class="sample-btn" onclick="loadSample('kerberoast')">Kerberoasting</button>
+        <button class="sample-btn" onclick="loadSample('powershell')">Encoded PowerShell</button>
+        <button class="sample-btn" onclick="loadSample('lsass')">LSASS Access</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OUTPUT PANEL ── -->
+  <div class="panel" id="output-panel">
+    <div class="panel-header">
+      <span class="panel-icon">📤</span>
+      <div>
+        <div class="panel-title">TRIAGE REPORT</div>
+        <div class="panel-sub">AI-GENERATED SOC ANALYSIS</div>
+      </div>
+    </div>
+
+    <div id="status-bar">
+      <div id="status-dot"></div>
+      <span id="status-text">AWAITING ALERT INPUT</span>
+    </div>
+
+    <div id="output-body">
+      <div id="empty-state">
+        <div id="empty-icon">🛡</div>
+        <div id="empty-title">NO ALERT ANALYSED YET</div>
+        <div id="empty-sub">FILL IN THE FORM OR PASTE JSON → CLICK ANALYSE</div>
+      </div>
+
+      <div id="results" style="display:none">
+
+        <!-- Verdict Card -->
+        <div id="verdict-card">
+          <div class="vc-top">
+            <div>
+              <div class="vc-verdict" id="vc-verdict-text"></div>
+              <div class="mitre-tactic" id="vc-tactic" style="margin-top:4px"></div>
+            </div>
+            <div class="vc-badges">
+              <span class="badge" id="badge-severity"></span>
+              <span class="badge" id="badge-confidence"></span>
+            </div>
+          </div>
+          <div class="vc-summary" id="vc-summary"></div>
+          <div class="vc-justification" id="vc-justification"></div>
+        </div>
+
+        <!-- Escalation Banner -->
+        <div id="escalation-banner">
+          <div class="esc-icon">🚨</div>
+          <div>
+            <div class="esc-title">ESCALATE TO IR TEAM</div>
+            <div class="esc-reason" id="esc-reason"></div>
+          </div>
+        </div>
+
+        <!-- MITRE -->
+        <div class="out-section">
+          <div class="out-section-title">MITRE ATT&CK MAPPING</div>
+          <div id="mitre-block">
+            <div>
+              <div class="mitre-tactic" id="out-tactic"></div>
+              <div class="mitre-tech" id="out-technique"></div>
+            </div>
+            <a id="out-mitre-link" class="mitre-id" target="_blank" rel="noreferrer"></a>
+          </div>
+        </div>
+
+        <!-- IOCs -->
+        <div class="out-section" id="ioc-section">
+          <div class="out-section-title">INDICATORS OF COMPROMISE (DEFANGED)</div>
+          <div class="ioc-list" id="ioc-list"></div>
+        </div>
+
+        <!-- Containment -->
+        <div class="out-section">
+          <div class="out-section-title">RECOMMENDED CONTAINMENT ACTIONS</div>
+          <div class="action-list" id="action-list"></div>
+        </div>
+
+        <!-- Analyst Notes -->
+        <div class="out-section">
+          <div class="out-section-title">ANALYST NOTES</div>
+          <div id="analyst-notes"></div>
+        </div>
+
+      </div><!-- /results -->
+    </div><!-- /output-body -->
+
+    <div id="export-bar">
+      <button class="export-btn" id="export-md" onclick="exportMarkdown()">⬇ EXPORT .MD TICKET</button>
+      <button class="export-btn" onclick="copyToClipboard()">📋 COPY TO CLIPBOARD</button>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+  // ── SAMPLE ALERTS ──
+  var SAMPLES = {
+    spray: JSON.stringify({
+      EventCode: "4625",
+      Account_Name: "john.doe",
+      Source_Network_Address: "10.0.0.2",
+      Logon_Type: "3",
+      ComputerName: "DC1",
+      unique_accounts_failed: "8",
+      failure_count_60s: "24",
+      alert_rule: "Password Spray Detected",
+      _time: "2024-11-14 14:02:56"
+    }, null, 2),
+
+    kerberoast: JSON.stringify({
+      EventCode: "4769",
+      Account_Name: "john.doe",
+      Service_Name: "MSSQLSvc/dc1.ad.lab:1433",
+      Ticket_Encryption_Type: "0x17",
+      Client_Address: "10.0.0.2",
+      ComputerName: "DC1",
+      services_targeted: ["MSSQLSvc", "HTTP/webserver", "CIFS/fileserver"],
+      request_count: "4",
+      _time: "2024-11-15 09:34:12"
+    }, null, 2),
+
+    powershell: JSON.stringify({
+      EventCode: "1",
+      Image: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      CommandLine: "powershell.exe -w hidden -noni -EncodedCommand JABhAHAAcAA9AFsARQBuAHYAaQByAG8AbgBtAGUAbgB0AF0AOgA6AEcAZQB0AEYAbwBsAGQAZQByAFAAYQB0AGgA",
+      ParentImage: "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      User: "ADLAB\\john.doe",
+      ComputerName: "WIN10-USER1",
+      ProcessId: "4821",
+      _time: "2024-11-16 11:22:04"
+    }, null, 2),
+
+    lsass: JSON.stringify({
+      EventCode: "10",
+      SourceImage: "C:\\Users\\john.doe\\Downloads\\mimikatz.exe",
+      TargetImage: "C:\\Windows\\System32\\lsass.exe",
+      GrantedAccess: "0x1010",
+      SourceUser: "ADLAB\\john.doe",
+      ComputerName: "WIN10-USER1",
+      CallTrace: "C:\\Windows\\SYSTEM32\\ntdll.dll|C:\\Windows\\System32\\KERNELBASE.dll",
+      _time: "2024-11-16 11:25:43"
+    }, null, 2)
+  };
+
+  // ── STATE ──
+  var currentTab = 'form';
+  var lastResult = null;
+  var ticketCounter = parseInt(localStorage.getItem('ticket_counter') || '5', 10);
+
+  // ── TAB SWITCHING ──
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+  }
+
+  // ── LOAD SAMPLE ──
+  function loadSample(key) {
+    var json = SAMPLES[key];
+    if (!json) return;
+    document.getElementById('json-input').value = json;
+    // Switch to JSON tab
+    currentTab = 'json';
+    document.querySelectorAll('.tab').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('tab-json').classList.add('active');
+  }
+
+  // ── BUILD ALERT STRING FROM FORM ──
+  function buildFromForm() {
+    var parts = [];
+    var alertName = document.getElementById('f-alert-name').value.trim();
+    var eventCode = document.getElementById('f-event-code').value.trim();
+    var host      = document.getElementById('f-host').value.trim();
+    var user      = document.getElementById('f-user').value.trim();
+    var srcip     = document.getElementById('f-src-ip').value.trim();
+    var cmdline   = document.getElementById('f-cmdline').value.trim();
+    var context   = document.getElementById('f-context').value.trim();
+
+    if (!alertName) return null;
+    if (alertName)  parts.push('Alert Name: ' + alertName);
+    if (eventCode)  parts.push('Event Code: ' + eventCode);
+    if (host)       parts.push('Host: ' + host);
+    if (user)       parts.push('User: ' + user);
+    if (srcip)      parts.push('Source IP: ' + srcip);
+    if (cmdline)    parts.push('Command Line / Process: ' + cmdline);
+    if (context)    parts.push('Additional Context: ' + context);
+    return parts.join('\n');
+  }
+
+  // ── SET STATUS ──
+  function setStatus(state, text) {
+    var dot  = document.getElementById('status-dot');
+    var span = document.getElementById('status-text');
+    dot.className = state;
+    span.textContent = text;
+    span.style.color = state === 'done' ? '#00ff88' : state === 'error' ? '#ff4466' : '#4a6a8a';
+  }
+
+  // ── VERDICT COLOURS ──
+  function verdictStyle(verdict) {
+    if (!verdict) return { bg:'#1a1a2b', border:'#6677ff', text:'#6677ff' };
+    var v = verdict.toLowerCase();
+    if (v.includes('confirmed'))   return { bg:'#1a0a0a', border:'#ff4466', text:'#ff4466' };
+    if (v.includes('suspected'))   return { bg:'#2b1f0a', border:'#ffaa00', text:'#ffaa00' };
+    if (v.includes('false'))       return { bg:'#0d2b1a', border:'#00ff88', text:'#00ff88' };
+    return { bg:'#1a1a2b', border:'#6677ff', text:'#6677ff' };
+  }
+
+  function severityColour(sev) {
+    if (!sev) return { bg:'#1a1a2b', text:'#6677ff' };
+    var s = sev.toLowerCase();
+    if (s === 'critical') return { bg:'#2a0a0a', text:'#ff4466' };
+    if (s === 'high')     return { bg:'#2b1500', text:'#ff8844' };
+    if (s === 'medium')   return { bg:'#2b1f0a', text:'#ffaa00' };
+    return { bg:'#0d2b1a', text:'#00ff88' };
+  }
+
+  // ── RENDER RESULT ──
+  function renderResult(data) {
+    lastResult = data;
+
+    var vs = verdictStyle(data.verdict);
+    var sc = severityColour(data.severity);
+    var cc = { bg:'#0d2020', text:'#00ccff' };
+
+    // Verdict card
+    var vc = document.getElementById('verdict-card');
+    vc.style.display = 'block';
+    vc.style.background = vs.bg;
+    vc.style.borderColor = vs.border;
+    document.getElementById('vc-verdict-text').textContent = data.verdict || 'Unknown';
+    document.getElementById('vc-verdict-text').style.color = vs.text;
+    document.getElementById('vc-tactic').textContent = data.mitre_tactic || '';
+    document.getElementById('vc-summary').textContent = data.summary || '';
+    document.getElementById('vc-justification').textContent = data.verdict_justification || '';
+
+    var bs = document.getElementById('badge-severity');
+    bs.textContent = (data.severity || 'UNKNOWN').toUpperCase();
+    bs.style.background = sc.bg; bs.style.color = sc.text;
+
+    var bc = document.getElementById('badge-confidence');
+    bc.textContent = (data.confidence || '').toUpperCase() + ' CONFIDENCE';
+    bc.style.background = cc.bg; bc.style.color = cc.text;
+
+    // Escalation
+    var eb = document.getElementById('escalation-banner');
+    if (data.escalate_to_ir) {
+      eb.classList.add('show');
+      eb.style.background = '#2b1500';
+      eb.style.border = '1px solid #ff884433';
+      document.getElementById('esc-reason').textContent = data.escalation_reason || '';
+    } else {
+      eb.classList.remove('show');
+    }
+
+    // MITRE
+    document.getElementById('out-tactic').textContent    = data.mitre_tactic || '';
+    document.getElementById('out-technique').textContent = data.mitre_technique || '';
+    var link = document.getElementById('out-mitre-link');
+    link.textContent = data.mitre_id || '';
+    link.href = data.mitre_url || '#';
+
+    // IOCs
+    var iocSection = document.getElementById('ioc-section');
+    var iocList    = document.getElementById('ioc-list');
+    iocList.innerHTML = '';
+    if (data.iocs && data.iocs.length > 0) {
+      iocSection.style.display = 'block';
+      data.iocs.forEach(function(ioc) {
+        var div = document.createElement('div');
+        div.className = 'ioc-item';
+        div.textContent = ioc;
+        iocList.appendChild(div);
+      });
+    } else {
+      iocSection.style.display = 'none';
+    }
+
+    // Containment
+    var al = document.getElementById('action-list');
+    al.innerHTML = '';
+    if (data.containment_actions && data.containment_actions.length > 0) {
+      data.containment_actions.forEach(function(action, i) {
+        var div = document.createElement('div');
+        div.className = 'action-item';
+        div.innerHTML = '<div class="action-num">' + (i + 1) + '</div><div>' + action + '</div>';
+        al.appendChild(div);
+      });
+    }
+
+    // Analyst notes
+    document.getElementById('analyst-notes').textContent = data.analyst_notes || 'No additional notes.';
+
+    // Show results
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('export-bar').classList.add('show');
+  }
+
+  // ── RUN TRIAGE ──
+  function runTriage() {
+    var alertData = '';
+
+    if (currentTab === 'json') {
+      alertData = document.getElementById('json-input').value.trim();
+      if (!alertData) { setStatus('error', 'NO JSON PROVIDED'); return; }
+    } else {
+      alertData = buildFromForm();
+      if (!alertData) { setStatus('error', 'ALERT NAME IS REQUIRED'); return; }
+    }
+
+    var btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    setStatus('active', 'ANALYSING ALERT...');
+
+    fetch('/.netlify/functions/triage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alertData: alertData })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error(JSON.stringify(data.error));
+      var parsed = JSON.parse(data.result);
+      renderResult(parsed);
+      setStatus('done', 'ANALYSIS COMPLETE — REVIEW REPORT BELOW');
+    })
+    .catch(function(err) {
+      setStatus('error', 'ANALYSIS FAILED — CHECK CONSOLE');
+      console.error(err);
+    })
+    .finally(function() {
+      btn.disabled = false;
+    });
+  }
+
+  // ── EXPORT MARKDOWN ──
+  function exportMarkdown() {
+    if (!lastResult) return;
+    var d = lastResult;
+    ticketCounter++;
+    localStorage.setItem('ticket_counter', ticketCounter);
+    var id = 'SOC-' + String(ticketCounter).padStart(3, '0');
+    var today = new Date().toISOString().split('T')[0];
+
+    var md = '# SOC Ticket — ' + id + '\n\n';
+    md += '**Date:** ' + today + '\n';
+    md += '**Analyst:** Christopher Rice\n';
+    md += '**Severity:** ' + (d.severity || 'Unknown') + '\n';
+    md += '**Status:** Open\n';
+    md += '**Classification:** ' + (d.verdict || 'Unknown') + '\n\n---\n\n';
+
+    md += '## Summary\n\n' + (d.summary || '') + '\n\n';
+    md += '## Verdict\n\n' + (d.verdict || '') + ' — ' + (d.confidence || '') + ' Confidence\n\n';
+    md += (d.verdict_justification || '') + '\n\n';
+
+    md += '## MITRE ATT&CK\n\n';
+    md += '| Field | Value |\n|---|---|\n';
+    md += '| Tactic | ' + (d.mitre_tactic || '') + ' |\n';
+    md += '| Technique | ' + (d.mitre_technique || '') + ' |\n';
+    md += '| ID | [' + (d.mitre_id || '') + '](' + (d.mitre_url || '') + ') |\n\n';
+
+    if (d.iocs && d.iocs.length > 0) {
+      md += '## IOCs (Defanged)\n\n';
+      d.iocs.forEach(function(ioc) { md += '- `' + ioc + '`\n'; });
+      md += '\n';
+    }
+
+    if (d.containment_actions && d.containment_actions.length > 0) {
+      md += '## Containment Actions\n\n';
+      d.containment_actions.forEach(function(a, i) { md += (i + 1) + '. ' + a + '\n'; });
+      md += '\n';
+    }
+
+    md += '## Escalate to IR\n\n' + (d.escalate_to_ir ? 'YES — ' + (d.escalation_reason || '') : 'No') + '\n\n';
+    md += '## Analyst Notes\n\n' + (d.analyst_notes || '') + '\n';
+
+    var blob = new Blob([md], { type: 'text/markdown' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = id + '-triage.md';
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  // ── COPY TO CLIPBOARD ──
+  function copyToClipboard() {
+    if (!lastResult) return;
+    var d = lastResult;
+    var text = [
+      'VERDICT: ' + d.verdict,
+      'SEVERITY: ' + d.severity,
+      'MITRE: ' + d.mitre_id + ' — ' + d.mitre_technique,
+      '',
+      d.summary,
+      '',
+      'CONTAINMENT:',
+      (d.containment_actions || []).map(function(a, i) { return (i+1) + '. ' + a; }).join('\n')
+    ].join('\n');
+    navigator.clipboard.writeText(text).catch(function() {});
+  }
+</script>
+</body>
+</html>
