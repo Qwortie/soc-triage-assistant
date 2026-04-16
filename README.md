@@ -7,7 +7,7 @@
 
 An AI-powered SOC analyst tool that takes a Splunk alert — either pasted as raw JSON or entered via a structured form — and generates a complete triage report in seconds. Built to accelerate Tier-1 SOC workflows by automating the initial analysis step.
 
-**Live demo:** [soc-triage.netlify.app](https://soc-triage.netlify.app)
+**Live demo:** [soc-triage.netlify.app](https://soc-triage-qwort.netlify.app/)
 
 ---
 
